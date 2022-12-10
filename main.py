@@ -113,7 +113,7 @@ async def on_start(message:Message):
 
 @bot.on.message(text='Подписаться на сервис')
 async def subscribe(message: Message):
-    if await api.groups.is_member('216295966',message.from_id):
+    if await api.groups.is_member('123456789',message.from_id):
         users_info = await bot.api.users.get(message.from_id)
         db.add_user(user_id=message.from_id, ID=message.from_id, name=f'{users_info[0].first_name} {users_info[0].last_name}')
         await message.answer(str(get_text()), keyboard=show_tasks)
@@ -188,7 +188,7 @@ async def sendall_func(message: Message):
 
 # @bot.on.message(text='Проверка')
 # async def new_message(message: Message):
-#     a =await api.groups.is_member('216040084',message.from_id)
+#     a =await api.groups.is_member('123456789',message.from_id)
 #     print(a)
 
 
