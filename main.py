@@ -1,7 +1,6 @@
 from vkbottle import VKAPIError
 from vkbottle import CtxStorage
 from vkbottle.bot import Bot, Message
-from cfg import get_api_key_for_user, get_admin_id, get_text
 from vkbottle import Keyboard, KeyboardButtonColor, Text
 from loguru import logger
 from database import Database
