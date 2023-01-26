@@ -6,21 +6,22 @@ from loguru import logger
 from database import Database
 from states import StatesClass as sc
 from states import InfoPost as IP
-from states import Sendall
+from states import Sendall, Sendall_sub
 from vkbottle import API
 import tracemalloc
 from vkbottle_types.events import GroupEventType, GroupTypes
-from vkbottle_types.events.objects.group_event_objects import GroupJoinObject
-from vkbottle_types.objects import CallbackGroupJoin, CallbackGroupJoinType
 from vkbottle import Callback
 from vkbottle.modules import json
 import configparser
+from utils import get_text
+import asyncio
 
 #Инициализация
 config = configparser.ConfigParser()
 config.read('config.ini')
 token = config['VK']['api_key']
 admin_id = config['VK']['admin_id']
+group_id = int(config['VK']['group_id'])
 bot = Bot(token=token)
 api = API(token=token)
 db = Database(db_file='vk_db.db')
@@ -33,6 +34,7 @@ show_tasks = Keyboard().add(Callback(label='Свободные заказы',pay
 take_task_kb = Keyboard(inline=True).add(Callback(label='Беру', payload={'cmd':'take_task'}),color=KeyboardButtonColor.POSITIVE)
 sub_kb = Keyboard(one_time=False).add(Text('Подписаться на сервис'), color=KeyboardButtonColor.POSITIVE)
 request_kb=Keyboard(inline=True).add(Text('Добавить'), color=KeyboardButtonColor.POSITIVE).add(Text('Отказать'), color=KeyboardButtonColor.NEGATIVE)
+delete_keyboadr = Keyboard(one_time=True)
 #Админка
 #Админская клавиатура----------------------------------------------
 admin_kb = Keyboard(one_time=True, inline=False)
@@ -41,6 +43,7 @@ admin_kb.add(Text('Удалить'), color=KeyboardButtonColor.NEGATIVE)
 main_kb = Keyboard(one_time=False, inline=False)
 main_kb.add(Text('Получить пользователей'), color=KeyboardButtonColor.POSITIVE)
 info_kb = Keyboard(one_time=True).add(Text('Прислать'), color=KeyboardButtonColor.POSITIVE).add(Text('Удалить_информацию'), color=KeyboardButtonColor.NEGATIVE)
+
 #Админские команды-----------------------------------------------
 @bot.on.message(text='Получить пользователей')
 async def get_users(message: Message):
@@ -169,29 +172,67 @@ async def delete_message(message: Message):
     ctx['post'] = ''
     await message.answer('Запись удалена')
 
-@bot.on.message(lev='sendall')
-async def send_all_func(message: Message):
+@bot.on.message(lev='-sendall_subs')
+async def send_all_subs(message: Message):
         if message.from_id == int(admin_id):
-            await bot.state_dispenser.set(message.peer_id, Sendall.MESSAGE_TEXT)
+            await bot.state_dispenser.set(message.peer_id, Sendall_sub.MESSAGE_TEXT)
             return 'Введите текст'
         else:
             await message.answer('Вы не являетесь администратором')
 
 
-@bot.on.message(state=Sendall.MESSAGE_TEXT)
-async def sendall_func(message: Message):
+
+@bot.on.message(state=Sendall_sub.MESSAGE_TEXT)
+async def sendall_subs_handler(message: Message):
     for user_id in db.get_users_id():
         await api.messages.send(user_id, random_id=0, message=message.text)
+        await asyncio.sleep(1)
     await bot.state_dispenser.delete(message.peer_id())
+
+
+@bot.on.message(lev='-sendall')
+async def sendall(message: Message):
+    if message.from_id == int(admin_id):
+        await bot.state_dispenser.set(message.peer_id, Sendall.MESSAGE_TEXT)
+        return 'Введите текст'
+    else:
+        return 'Вы не являетесь администратором'
     
 
+
+@bot.on.message(state=Sendall.MESSAGE_TEXT)
+async def sendall_handler(message: Message):
+    await bot.state_dispenser.delete(message.peer_id)
+    curent_offset = 0
+    while True:
+        conversations = await api.messages.get_conversations(group_id=group_id, offset=curent_offset)
+        print(conversations)
+        if conversations.items == []:
+            break
+        for con in conversations.items:
+            peer_id = con.conversation.peer.id
+            await api.messages.send(peer_id=peer_id, message=message.text, random_id=0)
+            await asyncio.sleep(1)
+        curent_offset += 200
+        
+
+
+@bot.on.message(text='-delete_keyboard')
+async def delete_keyboard(message: Message):
+    await api.messages.send(peer_id=message.peer_id, random_id=0, keyboard=delete_keyboadr.get_json(), message='Клавиатура удалена')
+    
 # @bot.on.message(text='Проверка')
 # async def new_message(message: Message):
-#     a =await api.groups.is_member('123456789',message.from_id)
+#     a =await api.messages.get_conversations(group_id=group_id, offset=0)
 #     print(a)
+#     if a.items == []:
+#         return 'lol'
+#     else:
+#         return 'not lol'
+    
 
 
-logger.remove()
+# logger.remove()   
 #Запуск
 print("Бот запущен")
 bot.run_forever()

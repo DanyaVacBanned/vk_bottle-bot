@@ -15,3 +15,4 @@ class Sendall_sub(BaseStateGroup):
 
 class NONE_USER(BaseStateGroup):
     MESSAGE_TEXT = 0
+
