@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+config.ini
+config.txt
+vk_db.db
+welcome_text.txt
