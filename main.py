@@ -15,12 +15,13 @@ from vkbottle.modules import json
 import configparser
 from utils import get_text
 import asyncio
-
+from time import sleep
 #Инициализация
 config = configparser.ConfigParser()
 config.read('config.ini')
 token = config['VK']['api_key']
-admin_id = config['VK']['admin_id']
+admin_id = config['VK']['first_admin_id']
+second_admin_id = config['VK']['second_admin_id']
 group_id = int(config['VK']['group_id'])
 bot = Bot(token=token)
 api = API(token=token)
@@ -31,7 +32,7 @@ ctx  = CtxStorage()
 tracemalloc.start()
 #Клавиатура
 show_tasks = Keyboard().add(Callback(label='Свободные заказы',payload={'cmd':'show_tasks'}), color=KeyboardButtonColor.POSITIVE)
-take_task_kb = Keyboard(inline=True).add(Callback(label='Беру', payload={'cmd':'take_task'}),color=KeyboardButtonColor.POSITIVE)
+take_task_kb = Keyboard(inline=True).add(Callback(label='Получить скидку', payload={'cmd':'take_task'}),color=KeyboardButtonColor.POSITIVE)
 sub_kb = Keyboard(one_time=False).add(Text('Подписаться на сервис'), color=KeyboardButtonColor.POSITIVE)
 request_kb=Keyboard(inline=True).add(Text('Добавить'), color=KeyboardButtonColor.POSITIVE).add(Text('Отказать'), color=KeyboardButtonColor.NEGATIVE)
 delete_keyboadr = Keyboard(one_time=True)
@@ -123,11 +124,12 @@ async def subscribe(message: Message):
         await message.answer('Вы должны быть подписанны на группу')
 @bot.on.message(lev='/info')
 async def info_handler(message: Message):
-    if message.from_id == int(admin_id):
+    if message.from_id == int(admin_id) or message.from_id == int(second_admin_id):
         await bot.state_dispenser.set(message.peer_id, IP.POST)
         return 'Введите информацию, которую нужно разослать'
     else:
         await message.answer('Вы не являетесь администратором')
+
 @bot.on.message(state=IP.POST)
 async def info_send(message: Message):
     ctx['info_id'] = message.id
@@ -137,7 +139,7 @@ async def info_send(message: Message):
 #Стейты
 @bot.on.message(lev="/post")
 async def reg_handler(message: Message):
-    if message.from_id == int(admin_id):
+    if message.from_id == int(admin_id) or message.from_id == int(second_admin_id):
         await bot.state_dispenser.set(message.peer_id, sc.NAME)
         return "Заполните ваш пост"
     else:
@@ -174,7 +176,7 @@ async def delete_message(message: Message):
 
 @bot.on.message(lev='-sendall_subs')
 async def send_all_subs(message: Message):
-        if message.from_id == int(admin_id):
+        if message.from_id == int(admin_id) or message.from_id == int(second_admin_id):
             await bot.state_dispenser.set(message.peer_id, Sendall_sub.MESSAGE_TEXT)
             return 'Введите текст'
         else:
@@ -192,7 +194,7 @@ async def sendall_subs_handler(message: Message):
 
 @bot.on.message(lev='-sendall')
 async def sendall(message: Message):
-    if message.from_id == int(admin_id):
+    if message.from_id == int(admin_id) or message.from_id == int(second_admin_id):
         await bot.state_dispenser.set(message.peer_id, Sendall.MESSAGE_TEXT)
         return 'Введите текст'
     else:
@@ -203,7 +205,8 @@ async def sendall(message: Message):
 @bot.on.message(state=Sendall.MESSAGE_TEXT)
 async def sendall_handler(message: Message):
     await bot.state_dispenser.delete(message.peer_id)
-    asyncio.create_task(sendall_func(message))
+    # await sendall_func(message)
+    asyncio.run(await sendall_func(message))
 
 
 
@@ -213,17 +216,24 @@ async def sendall_func(message: Message):
     while True:
        
             conversations = await api.messages.get_conversations(group_id=group_id, offset=curent_offset)
+            # for con in conversations.items:
+            #     print(con.conversation.peer.id)
+            # input()
             # print(conversations)
-            curent_offset += 200
+            curent_offset += 20
             if conversations.items == []:
                 break
             for con in conversations.items:
                 try:
                     peer_id = con.conversation.peer.id
                     await api.messages.send(peer_id=peer_id, message=message.text, random_id=0)
-                    await asyncio.sleep(1)
-                except VKAPIError:
+                    # print(f'Сообщение отправленно {peer_id}')
+                    # await asyncio.sleep(1)
+                except VKAPIError as ex:
+                    print(ex)
                     continue
+                except Exception as ex:
+                    print(ex)
         
         
 
@@ -243,7 +253,7 @@ async def delete_keyboard(message: Message):
     
 
 
-# logger.remove()   
+logger.remove()   
 #Запуск
 print("Бот запущен")
 bot.run_forever()
