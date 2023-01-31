@@ -6,7 +6,7 @@ from loguru import logger
 from database import Database
 from states import StatesClass as sc
 from states import InfoPost as IP
-from states import Sendall, Sendall_sub
+from states import Sendall, Sendall_sub, NONE_USER
 from vkbottle import API
 import tracemalloc
 from vkbottle_types.events import GroupEventType, GroupTypes
@@ -31,7 +31,7 @@ ctx  = CtxStorage()
 
 tracemalloc.start()
 #Клавиатура
-show_tasks = Keyboard().add(Callback(label='Свободные заказы',payload={'cmd':'show_tasks'}), color=KeyboardButtonColor.POSITIVE)
+
 take_task_kb = Keyboard(inline=True).add(Callback(label='Получить скидку', payload={'cmd':'take_task'}),color=KeyboardButtonColor.POSITIVE)
 sub_kb = Keyboard(one_time=False).add(Text('Подписаться на сервис'), color=KeyboardButtonColor.POSITIVE)
 request_kb=Keyboard(inline=True).add(Text('Добавить'), color=KeyboardButtonColor.POSITIVE).add(Text('Отказать'), color=KeyboardButtonColor.NEGATIVE)
@@ -76,12 +76,7 @@ async def get_users(message: Message):
 
 @bot.on.raw_event(event=GroupEventType.GROUP_LEAVE, dataclass=GroupTypes.GroupLeave)
 async def leave_group(event: GroupTypes.GroupLeave):
-    await bot.api.messages.send(
-        peer_id=event.object.user_id,
-        message='Вы отписались от сообщества, теперь вы не будете видеть новые заказы.',
-        random_id=0
-    
-    )
+
     db.delete_data(ID = event.object.user_id)
 
 
@@ -112,14 +107,14 @@ async def take_task(event: GroupTypes.MessageEvent):
 
 @bot.on.message(text='Начать')
 async def on_start(message:Message):
-    await message.answer(message='Чтобы получать заказы, подпишитесь на сервис', keyboard=sub_kb)
+    await message.answer(message=get_text(), keyboard=sub_kb)
 
 @bot.on.message(text='Подписаться на сервис')
 async def subscribe(message: Message):
-    if await api.groups.is_member('123456789',message.from_id):
+    if await api.groups.is_member(group_id, message.from_id):
         users_info = await bot.api.users.get(message.from_id)
         db.add_user(user_id=message.from_id, ID=message.from_id, name=f'{users_info[0].first_name} {users_info[0].last_name}')
-        await message.answer(str(get_text()), keyboard=show_tasks)
+        await message.answer(str(get_text()))
     else:
         await message.answer('Вы должны быть подписанны на группу')
 @bot.on.message(lev='/info')
@@ -241,6 +236,24 @@ async def sendall_func(message: Message):
 @bot.on.message(text='-delete_keyboard')
 async def delete_keyboard(message: Message):
     await api.messages.send(peer_id=message.peer_id, random_id=0, keyboard=delete_keyboadr.get_json(), message='Клавиатура удалена')
+    
+
+
+@bot.on.message(lev='-delete-users')
+async def delete_users_from_db(message: Message):
+    if message.from_id == int(admin_id) or message.from_id == int(second_admin_id):
+        await bot.state_dispenser.set(message.peer_id, NONE_USER.MESSAGE_TEXT)
+        return 'Введите список id пользователей, которых нужно удалить через пробел (241241 12040 242112)'
+@bot.on.message(state=NONE_USER.MESSAGE_TEXT)
+async def delete_users_procces(message: Message):
+    await bot.state_dispenser.delete(message.peer_id)
+    users_list = message.text.strip().split()
+    for user in users_list:
+        try:
+            db.delete_data(user)
+        except:
+            await message.answer(f'Пользователь с id {user} не найден')
+    return 'Все указанные пользователи успешно удаленны!'
     
 # @bot.on.message(text='Проверка')
 # async def new_message(message: Message):
