@@ -5,3 +5,4 @@ config.txt
 vk_db.db
 welcome_text.txt
 test.py
+.venv/
